@@ -1,4 +1,3 @@
-import os
 import requests
 from flask import Flask, request
 import telegram
@@ -9,22 +8,19 @@ ALLOWED_USERS = [658712542]
 FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
-# إنشاء البوت و Flask
+# إنشاء البوت وFlask
 bot = telegram.Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return '✅ Bot is live!'
+    return '🤖 Bot is running!'
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])  # ✅ رابط Webhook المعدّل
 def telegram_webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     handle_message(update)
     return 'OK'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
 
 def handle_message(update):
     message = update.message
@@ -59,7 +55,11 @@ def scan_stocks(chat_id):
         if len(results) >= 10:
             break
 
-    msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results) if results else "❌ لا توجد أسهم تحقق الشروط حالياً."
+    if results:
+        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
+    else:
+        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
+
     bot.send_message(chat_id=chat_id, text=msg)
 
 def scan_crypto(chat_id):
@@ -71,10 +71,4 @@ def scan_crypto(chat_id):
     bot.send_message(chat_id=chat_id, text=msg)
 
 if __name__ == '__main__':
-    # تعيين Webhook
-    webhook_url = f"https://al3aql-almodabber-py-1.onrender.com/{BOT_TOKEN}"
-    bot.set_webhook(url=webhook_url)
-
-    # استخدام متغير البيئة PORT إذا توفر
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=10000)
