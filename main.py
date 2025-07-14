@@ -17,11 +17,14 @@ app = Flask(__name__)
 def home():
     return '✅ Bot is live!'
 
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     handle_message(update)
     return 'OK'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
 
 def handle_message(update):
     message = update.message
