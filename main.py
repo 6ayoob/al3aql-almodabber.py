@@ -7,7 +7,7 @@ BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
 ALLOWED_USERS = [658712542]
 
 app = Flask(__name__)
-application = Application.builder().token(BOT_TOKEN).build()
+application = Application.builder().token("7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8").build()
 
 # أمر اختبار
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -31,7 +31,7 @@ def home():
 @app.before_first_request
 def setup_webhook():
    https://crypto-mastermind.onrender.com # ← استبدل هذا بالرابط الفعلي لخدمتك على Render
-    bot = Bot(BOT_TOKEN)
+    bot = Bot("7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8")
     bot.set_webhook(url)
 
 if __name__ == "__main__":
