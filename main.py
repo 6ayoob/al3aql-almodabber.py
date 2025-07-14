@@ -30,7 +30,7 @@ def home():
 # تعيين Webhook تلقائيًا عند أول تشغيل
 @app.before_first_request
 def setup_webhook():
-    url = "https://<YOUR_RENDER_URL>.onrender.com"  # ← استبدل هذا بالرابط الفعلي لخدمتك على Render
+   https://crypto-mastermind.onrender.com # ← استبدل هذا بالرابط الفعلي لخدمتك على Render
     bot = Bot(BOT_TOKEN)
     bot.set_webhook(url)
 
