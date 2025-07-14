@@ -1,73 +1,73 @@
-import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from flask import Flask
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import requests
 import asyncio
 
 # إعدادات البوت
 BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
 ALLOWED_USERS = [658712542]
-
-# API
 FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
-# Flask
 app = Flask(__name__)
+bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return 'Bot is alive!'
 
-# ====== Telegram Commands ======
-
+# أوامر البوت
 async def scan_stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ALLOWED_USERS:
         return
     await update.message.reply_text("🔍 جاري البحث عن الأسهم تحت 7 دولار...")
 
-    url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
-    symbols = requests.get(url).json()
+    try:
+        symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
+        symbols = requests.get(symbols_url).json()
 
-    results = []
-    for stock in symbols:
-        symbol = stock["symbol"]
-        q = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
-        data = requests.get(q).json()
-        price = data.get("c")
-        if price and price < 7:
-            results.append(f"{symbol} - ${price}")
-        if len(results) >= 10:
-            break
+        results = []
+        for stock in symbols:
+            symbol = stock["symbol"]
+            quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
+            data = requests.get(quote_url).json()
+            current = data.get("c")
+            if current and current < 7:
+                results.append(f"{symbol} - ${current}")
+            if len(results) >= 10:
+                break
 
-    msg = "أفضل الأسهم تحت ٧ دولار:\n" + "\n".join(results) if results else "❌ لا توجد نتائج حالياً."
-    await update.message.reply_text(msg)
+        msg = "📈 أفضل الأسهم تحت ٧ دولار:\n" + "\n".join(results) if results else "❌ لا توجد نتائج."
+        await update.message.reply_text(msg)
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ: {e}")
 
 async def scan_crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ALLOWED_USERS:
         return
     await update.message.reply_text("💰 جاري فحص العملات الرقمية...")
 
-    url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
-    coins = requests.get(url).json()
-    msg = "🪙 أفضل العملات:\n" + "\n".join(
-        f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in coins
-    )
-    await update.message.reply_text(msg)
+    try:
+        url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
+        response = requests.get(url).json()
+        lines = [f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in response]
+        await update.message.reply_text("🪙 أفضل العملات الرقمية:\n" + "\n".join(lines))
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ: {e}")
 
-# ====== Main Runner ======
+# ربط الأوامر
+bot_app.add_handler(CommandHandler("scan_stocks", scan_stocks))
+bot_app.add_handler(CommandHandler("scan_crypto", scan_crypto))
+
+# تشغيل البوت بشكل غير متزامن داخل Flask
 def run_bot():
-    app_telegram = ApplicationBuilder().token(BOT_TOKEN).build()
-    app_telegram.add_handler(CommandHandler("scan_stocks", scan_stocks))
-    app_telegram.add_handler(CommandHandler("scan_crypto", scan_crypto))
-
-    loop = asyncio.get_event_loop()
-    loop.create_task(app_telegram.initialize())
-    loop.create_task(app_telegram.start())
-    loop.create_task(app_telegram.updater.start_polling())
-    return loop
-
-if __name__ == '__main__':
-    loop = run_bot()
-    app.run(host='0.0.0.0', port=10000)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(bot_app.initialize())
+    loop.run_until_complete(bot_app.start())
+    loop.run_until_complete(bot_app.updater.start_polling())
     loop.run_forever()
+
+import threading
+threading.Thread(target=run_bot).start()
