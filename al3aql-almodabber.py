@@ -1,69 +1,86 @@
 import requests
-from flask import Flask
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-import asyncio
+from flask import Flask, request
+import telegram
 
 # إعدادات البوت
 BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
 ALLOWED_USERS = [658712542]
-
-# مفاتيح API
 FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
-# إعداد Flask
+# إنشاء البوت وFlask
+bot = telegram.Bot(BOT_TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is alive!"
+    return 'Bot is live!'
 
-# أوامر البوت
-async def scan_stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ALLOWED_USERS:
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def telegram_webhook():
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+    handle_message(update)
+    return 'OK'
+
+def handle_message(update):
+    message = update.message
+    user_id = message.chat.id
+    text = message.text
+
+    if user_id not in ALLOWED_USERS:
+        bot.send_message(chat_id=user_id, text="❌ غير مصرح لك باستخدام هذا البوت.")
         return
-    await update.message.reply_text("🔍 جاري البحث عن الأسهم تحت 7 دولار...")
 
-    url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
-    symbols = requests.get(url).json()
+    if text == '/start':
+        msg = (
+            "🤖 مرحبًا بك في بوت العقل المدبر!\n"
+            "الأوامر المتاحة:\n"
+            "/scan_stocks - عرض أفضل الأسهم تحت 7 دولار\n"
+            "/scan_crypto - عرض أفضل العملات الرقمية"
+        )
+        bot.send_message(chat_id=user_id, text=msg)
+
+    elif text == '/scan_stocks':
+        bot.send_message(chat_id=user_id, text="🔍 جاري البحث عن الأسهم تحت 7 دولار...")
+        scan_stocks(user_id)
+
+    elif text == '/scan_crypto':
+        bot.send_message(chat_id=user_id, text="💰 جاري فحص العملات الرقمية...")
+        scan_crypto(user_id)
+
+def scan_stocks(chat_id):
+    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
+    symbols = requests.get(symbols_url).json()
 
     results = []
     for stock in symbols:
         symbol = stock["symbol"]
         quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
         data = requests.get(quote_url).json()
-        price = data.get("c")
-        if price and 0 < price < 7:
-            results.append(f"{symbol} - ${price}")
+        current = data.get("c")
+
+        if current and current > 0 and current < 7:
+            results.append(f"{symbol} - ${current:.2f}")
         if len(results) >= 10:
             break
 
-    msg = "أفضل الأسهم تحت ٧ دولار:\n" + "\n".join(results) if results else "❌ لا توجد أسهم حالياً."
-    await update.message.reply_text(msg)
+    if results:
+        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
+    else:
+        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
 
-async def scan_crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ALLOWED_USERS:
-        return
-    await update.message.reply_text("💰 جاري فحص العملات الرقمية...")
+    bot.send_message(chat_id=chat_id, text=msg)
 
+def scan_crypto(chat_id):
     url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
-    coins = requests.get(url).json()
-    lines = [f"{c['name']} ({c['symbol'].upper()}): ${c['current_price']}" for c in coins]
-    await update.message.reply_text("🪙 أفضل العملات الرقمية:\n" + "\n".join(lines))
+    response = requests.get(url).json()
 
-# تشغيل البوت
-async def main():
-    app_telegram = Application.builder().token(7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8).build()
-    app_telegram.add_handler(CommandHandler("scan_stocks", scan_stocks))
-    app_telegram.add_handler(CommandHandler("scan_crypto", scan_crypto))
-    await app_telegram.initialize()
-    await app_telegram.start()
-    await app_telegram.updater.start_polling()
-    print("Telegram Bot is running...")
+    lines = [f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in response]
+    msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
+    bot.send_message(chat_id=chat_id, text=msg)
 
-# تشغيل Flask وTelegram معًا
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    app.run(host="0.0.0.0", port=10000)
+if __name__ == '__main__':
+    # تعيين Webhook
+    webhook_url = f"https://al3aql-almodabber-py-1.onrender.com/{BOT_TOKEN}"
+    bot.set_webhook(url=webhook_url)
+    app.run(host='0.0.0.0', port=10000)
