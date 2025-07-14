@@ -54,7 +54,7 @@ async def scan_crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تشغيل البوت
 async def main():
-    app_telegram = Application.builder().token(BOT_TOKEN).build()
+    app_telegram = Application.builder().token(7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8).build()
     app_telegram.add_handler(CommandHandler("scan_stocks", scan_stocks))
     app_telegram.add_handler(CommandHandler("scan_crypto", scan_crypto))
     await app_telegram.initialize()
