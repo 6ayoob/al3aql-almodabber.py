@@ -9,14 +9,14 @@ FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
 # إنشاء البوت وFlask
-bot = telegram.Bot(7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8)
+bot = telegram.Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return 'Bot is live!'
+    return '✅ Bot is live!'
 
-@app.route(f'/{7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8}', methods=['POST'])
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def telegram_webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     handle_message(update)
@@ -40,13 +40,13 @@ def handle_message(update):
         scan_crypto(user_id)
 
 def scan_stocks(chat_id):
-    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g}"
+    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
     symbols = requests.get(symbols_url).json()
 
     results = []
     for stock in symbols:
         symbol = stock["symbol"]
-        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g}"
+        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
         data = requests.get(quote_url).json()
         current = data.get("c")
 
@@ -72,6 +72,6 @@ def scan_crypto(chat_id):
 
 if __name__ == '__main__':
     # تعيين Webhook
-    webhook_url = f"https://al3aql-almodabber-py-1.onrender.com/{7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8}"
+    webhook_url = f"https://al3aql-almodabber-py-1.onrender.com/{BOT_TOKEN}"
     bot.set_webhook(url=webhook_url)
     app.run(host='0.0.0.0', port=10000)
