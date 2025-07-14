@@ -30,7 +30,7 @@ def home():
 # تعيين Webhook تلقائيًا عند أول تشغيل
 @app.before_first_request
 def setup_webhook():
-   https://crypto-mastermind.onrender.com # ← استبدل هذا بالرابط الفعلي لخدمتك على Render
+ https://al3aql-almodabber-py-1.onrender.com# ← استبدل هذا بالرابط الفعلي لخدمتك على Render
     bot = Bot("7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8")
     bot.set_webhook(url)
 
