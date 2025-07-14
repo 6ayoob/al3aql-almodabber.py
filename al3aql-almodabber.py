@@ -44,9 +44,7 @@ async def scan_stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             break
 
     if results:
-  msg = "أفضل الأسهم تحت ٧ دولار ←"
-
-" + "\n".join(results)
+        msg = "أفضل الأسهم تحت ٧ دولار ←\n" + "\n".join(results)
     else:
         msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
 
