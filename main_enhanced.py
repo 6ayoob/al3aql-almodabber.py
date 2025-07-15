@@ -58,8 +58,29 @@ def scan_stocks(chat_id):
             break
 
     if results:
- msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
-" + "\n".join(results)
+  def scan_stocks(chat_id):
+    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
+    symbols = requests.get(symbols_url).json()
+
+    results = []
+    for stock in symbols:
+        symbol = stock["symbol"]
+        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
+        data = requests.get(quote_url).json()
+        current = data.get("c")
+
+        if current and current > 0 and current < 7:
+            results.append(f"{symbol} - ${current:.2f}")
+        if len(results) >= 10:
+            break
+
+    if results:
+        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
+    else:
+        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
+
+    bot.send_message(chat_id=chat_id, text=msg)
+
     else:
         msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
 
