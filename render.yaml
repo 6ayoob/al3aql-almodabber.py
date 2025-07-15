@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: al3aql-almodabber
+    name: market-alert-bot
     env: python
     plan: free
     buildCommand: ""
-    startCommand: python al3aql-almodabber.py
+    startCommand: python main_enhanced.py
     envVars:
       - key: PORT
         value: 10000

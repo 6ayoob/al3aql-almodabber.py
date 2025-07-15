@@ -1,14 +1,19 @@
-# al3aql-almodabber
+# Market Alert Bot
 
-Telegram bot that scans:
-- 🏦 US stocks under $7 using Finnhub API
-- 💰 Top 10 cryptocurrencies using CoinGecko
+بوت تيليجرام يرسل تنبيهات تلقائية للأسهم والعملات الرقمية عند:
+- اختراق مقاومة (Breakout)
+- كسر دعم (Breakdown)
+- دخول سيولة كبيرة (Volume Spike)
 
-### Commands:
-- `/scan_stocks` – Lists US stocks under $7
-- `/scan_crypto` – Lists top 10 crypto coins
+### الأوامر:
+- `/scan_stocks` 🔍 أفضل الأسهم تحت 7$
+- `/scan_crypto` 💰 أفضل العملات الرقمية حاليًا
 
-### Powered by:
-- Finnhub (stocks)
-- CoinGecko (crypto)
-- Python + Flask + Telegram Bot
+### مميزات إضافية:
+- تنبيهات تلقائية كل ساعة
+- تصنيف الفرص (💎 قوي / 🔹 متوسط)
+- روابط مباشرة لـ TradingView وCoinGecko
+
+### النشر على Render:
+- استخدم `render.yaml` للنشر التلقائي
+- حدد `start command`: `python main_enhanced.py`
