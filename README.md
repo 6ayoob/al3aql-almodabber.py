@@ -7,4 +7,4 @@ services:
     startCommand: python main.py
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.3
+        value: 3.10.11
