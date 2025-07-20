@@ -1,3 +1,3 @@
 python-telegram-bot==13.15
-Flask
-APScheduler
+Flask==2.3.3
+APScheduler==3.10.4
