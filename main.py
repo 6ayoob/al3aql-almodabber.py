@@ -1,98 +1,74 @@
-import requests
-import yfinance as yf
-from flask import Flask, request
+import os
+from flask import Flask
+from telegram import Bot, Update
+from telegram.ext import CommandHandler, CallbackContext, Updater, Dispatcher
 from apscheduler.schedulers.background import BackgroundScheduler
-import telegram
-import pytz
-from datetime import datetime
+import logging
 
 # إعدادات البوت
 BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
-ALLOWED_USERS = [658712542]  # أضف هنا معرفات المستخدمين المصرح لهم
+ALLOWED_USERS = [7863509137]
 
-# إعداد البوت والتطبيق
-bot = telegram.Bot(token=BOT_TOKEN)
+# تهيئة البوت
+bot = Bot(token=BOT_TOKEN)
+
+# Flask لتشغيل الخدمة على Render
 app = Flask(__name__)
-timezone = pytz.timezone("Asia/Riyadh")
 
-# دالة لجلب رموز ناسداك من ملف رسمي
-def get_nasdaq_tickers():
-    url = "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt"
-    resp = requests.get(url)
-    lines = resp.text.splitlines()[1:]  # تخطي رأس الجدول
-    tickers = [line.split("|")[0] for line in lines if "Test Issue" not in line]
-    return tickers
+# إعدادات اللوغ
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# دالة الفحص وإرسال التنبيهات
-def scan_and_notify():
-    tickers = get_nasdaq_tickers()
-    batch = tickers[:300]  # يمكن زيادة العدد حسب الحاجة
+# دالة فحص العملات (مثال)
+def scan_crypto():
+    return "📈 أفضل العملات الآن:\n1. BTC\n2. ETH\n3. SOL"
 
+# دالة فحص الأسهم (مثال)
+def scan_stocks():
+    return "📊 أفضل الأسهم الآن:\n1. AAPL\n2. NVDA\n3. TSLA"
+
+# أوامر التليجرام
+def start(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        update.message.reply_text("مرحبًا! أرسل /scan_crypto أو /scan_stocks للحصول على التحليلات.")
+
+def scan_crypto_command(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_crypto()
+        update.message.reply_text(result)
+
+def scan_stocks_command(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_stocks()
+        update.message.reply_text(result)
+
+# جدولة إرسال تلقائي يومي
+def send_daily_report():
     try:
-        data = yf.download(tickers=batch, period="2d", interval="1d", group_by='ticker', threads=True)
+        bot.send_message(chat_id=7863509137, text="📅 تقرير السوق:\n\n" + scan_crypto() + "\n\n" + scan_stocks())
     except Exception as e:
-        print(f"فشل في تحميل البيانات: {e}")
-        return
+        print("خطأ أثناء إرسال التقرير:", e)
 
-    for ticker in batch:
-        try:
-            if ticker not in data or len(data[ticker]) < 2:
-                continue
-
-            today = data[ticker].iloc[-1]
-            yesterday = data[ticker].iloc[-2]
-
-            close = today['Close']
-            prev_close = yesterday['Close']
-            sma_50 = yf.Ticker(ticker).history(period="60d")['Close'].rolling(50).mean().iloc[-1]
-
-            percent_change = ((close - prev_close) / prev_close) * 100
-            crossed_sma50 = close > sma_50 and yesterday['Close'] <= sma_50
-
-            msg = ""
-            if close > 1:
-                if percent_change >= 5:
-                    msg += f"📈 {ticker} صعد أكثر من 5٪ اليوم\n"
-                if crossed_sma50:
-                    msg += f"📊 {ticker} اخترق المتوسط 50 SMA\n"
-
-                if msg:
-                    for uid in ALLOWED_USERS:
-                        bot.send_message(chat_id=uid, text=msg)
-
-        except Exception as e:
-            print(f"خطأ في {ticker}: {e}")
-
-# صفحة التحقق على الويب
+# تشغيل Flask وهمي لـ Render
 @app.route('/')
 def home():
-    return '✅ Stock bot is running.'
+    return "Running!"
 
-# نقطة تلقي الرسائل من تليجرام
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    handle_message(update)
-    return 'OK'
-
-# التعامل مع الرسائل
-def handle_message(update):
-    message = update.message
-    chat_id = message.chat.id
-
-    if chat_id not in ALLOWED_USERS:
-        bot.send_message(chat_id=chat_id, text="🚫 غير مصرح لك باستخدام هذا البوت.")
-        return
-
-    if message.text == '/scan':
-        bot.send_message(chat_id=chat_id, text="🔍 يتم الآن فحص السوق...")
-        scan_and_notify()
-
-# جدولة الفحص التلقائي كل ساعة
-scheduler = BackgroundScheduler(timezone=timezone)
-scheduler.add_job(scan_and_notify, 'interval', hours=1)
-scheduler.start()
-
-# تشغيل السيرفر على Render
+# التهيئة النهائية
 if __name__ == '__main__':
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp: Dispatcher = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("scan_crypto", scan_crypto_command))
+    dp.add_handler(CommandHandler("scan_stocks", scan_stocks_command))
+
+    # تشغيل البوت
+    updater.start_polling()
+
+    # جدولة التقرير اليومي الساعة 3 مساءً
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(send_daily_report, 'cron', hour=15, minute=0, timezone='Asia/Riyadh')
+    scheduler.start()
+
+    # تشغيل Flask
     app.run(host='0.0.0.0', port=10000)
