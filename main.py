@@ -70,5 +70,53 @@ def scan_crypto(chat_id):
     msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
     bot.send_message(chat_id=chat_id, text=msg)
 
+if name == '__main__':
+    app.run(host='0.0.0.0', port=10000)pdate.message
+    user_id = message.chat.id
+    text = message.text
+
+    if user_id not in ALLOWED_USERS:
+        bot.send_message(chat_id=user_id, text="❌ غير مصرح لك باستخدام هذا البوت.")
+        return
+
+    if text == '/scan_stocks':
+        bot.send_message(chat_id=user_id, text="🔍 جاري البحث عن الأسهم تحت 7 دولار...")
+        scan_stocks(user_id)
+
+    elif text == '/scan_crypto':
+        bot.send_message(chat_id=user_id, text="💰 جاري فحص العملات الرقمية...")
+        scan_crypto(user_id)
+
+def scan_stocks(chat_id):
+    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
+    symbols = requests.get(symbols_url).json()
+
+    results = []
+    for stock in symbols:
+        symbol = stock["symbol"]
+        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
+        data = requests.get(quote_url).json()
+        current = data.get("c")
+
+        if current and current > 0 and current < 7:
+            results.append(f"{symbol} - ${current:.2f}")
+        if len(results) >= 10:
+            break
+
+    if results:
+        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
+    else:
+        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
+
+    bot.send_message(chat_id=chat_id, text=msg)
+
+def scan_crypto(chat_id):
+    url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
+    response = requests.get(url).json()
+
+    lines = [f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in response]
+    msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
+    bot.send_message(chat_id=chat_id, text=msg)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
