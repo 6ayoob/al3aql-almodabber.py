@@ -1,86 +1,74 @@
-import requests
-from flask import Flask, request
-import telegram
+import os
+from flask import Flask
+from telegram import Bot, Update
+from telegram.ext import CommandHandler, CallbackContext, Updater, Dispatcher
+from apscheduler.schedulers.background import BackgroundScheduler
+import logging
 
 # إعدادات البوت
 BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
-ALLOWED_USERS = [658712542]
-FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
-COINGECKO_API = "https://api.coingecko.com/api/v3"
+ALLOWED_USERS = [7863509137]
 
-# إنشاء البوت وFlask
-bot = telegram.Bot(BOT_TOKEN)
+# تهيئة البوت
+bot = Bot(token=BOT_TOKEN)
+
+# Flask لتشغيل الخدمة على Render
 app = Flask(__name__)
 
+# إعدادات اللوغ
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# دالة فحص العملات (مثال)
+def scan_crypto():
+    return "📈 أفضل العملات الآن:\n1. BTC\n2. ETH\n3. SOL"
+
+# دالة فحص الأسهم (مثال)
+def scan_stocks():
+    return "📊 أفضل الأسهم الآن:\n1. AAPL\n2. NVDA\n3. TSLA"
+
+# أوامر التليجرام
+def start(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        update.message.reply_text("مرحبًا! أرسل /scan_crypto أو /scan_stocks للحصول على التحليلات.")
+
+def scan_crypto_command(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_crypto()
+        update.message.reply_text(result)
+
+def scan_stocks_command(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_stocks()
+        update.message.reply_text(result)
+
+# جدولة إرسال تلقائي يومي
+def send_daily_report():
+    try:
+        bot.send_message(chat_id=7863509137, text="📅 تقرير السوق:\n\n" + scan_crypto() + "\n\n" + scan_stocks())
+    except Exception as e:
+        print("خطأ أثناء إرسال التقرير:", e)
+
+# تشغيل Flask وهمي لـ Render
 @app.route('/')
 def home():
-    return 'Bot is live!'
+    return "Running!"
 
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def telegram_webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    handle_message(update)
-    return 'OK'
-
-def handle_message(update):
-    message = update.message
-    user_id = message.chat.id
-    text = message.text
-
-    if user_id not in ALLOWED_USERS:
-        bot.send_message(chat_id=user_id, text="❌ غير مصرح لك باستخدام هذا البوت.")
-        return
-
-    if text == '/start':
-        msg = (
-            "🤖 مرحبًا بك في بوت العقل المدبر!\n"
-            "الأوامر المتاحة:\n"
-            "/scan_stocks - عرض أفضل الأسهم تحت 7 دولار\n"
-            "/scan_crypto - عرض أفضل العملات الرقمية"
-        )
-        bot.send_message(chat_id=user_id, text=msg)
-
-    elif text == '/scan_stocks':
-        bot.send_message(chat_id=user_id, text="🔍 جاري البحث عن الأسهم تحت 7 دولار...")
-        scan_stocks(user_id)
-
-    elif text == '/scan_crypto':
-        bot.send_message(chat_id=user_id, text="💰 جاري فحص العملات الرقمية...")
-        scan_crypto(user_id)
-
-def scan_stocks(chat_id):
-    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
-    symbols = requests.get(symbols_url).json()
-
-    results = []
-    for stock in symbols:
-        symbol = stock["symbol"]
-        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
-        data = requests.get(quote_url).json()
-        current = data.get("c")
-
-        if current and current > 0 and current < 7:
-            results.append(f"{symbol} - ${current:.2f}")
-        if len(results) >= 10:
-            break
-
-    if results:
-        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
-    else:
-        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
-
-    bot.send_message(chat_id=chat_id, text=msg)
-
-def scan_crypto(chat_id):
-    url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
-    response = requests.get(url).json()
-
-    lines = [f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in response]
-    msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
-    bot.send_message(chat_id=chat_id, text=msg)
-
+# التهيئة النهائية
 if __name__ == '__main__':
-    # تعيين Webhook
-    webhook_url = f"https://al3aql-almodabber-py-1.onrender.com/{BOT_TOKEN}"
-    bot.set_webhook(url=webhook_url)
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp: Dispatcher = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("scan_crypto", scan_crypto_command))
+    dp.add_handler(CommandHandler("scan_stocks", scan_stocks_command))
+
+    # تشغيل البوت
+    updater.start_polling()
+
+    # جدولة التقرير اليومي الساعة 3 مساءً
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(send_daily_report, 'cron', hour=15, minute=0, timezone='Asia/Riyadh')
+    scheduler.start()
+
+    # تشغيل Flask
     app.run(host='0.0.0.0', port=10000)
