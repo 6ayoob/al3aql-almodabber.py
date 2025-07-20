@@ -1,74 +1,60 @@
-import os
-from flask import Flask
+from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import CommandHandler, CallbackContext, Updater, Dispatcher
+from telegram.ext import Dispatcher, CommandHandler, CallbackContext
 from apscheduler.schedulers.background import BackgroundScheduler
-import logging
+import os
 
-# إعدادات البوت
-BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
+TOKEN = "توكن_البوت_هنا"
 ALLOWED_USERS = [7863509137]
 
-# تهيئة البوت
-bot = Bot(token=BOT_TOKEN)
-
-# Flask لتشغيل الخدمة على Render
+bot = Bot(token=TOKEN)
 app = Flask(__name__)
 
-# إعدادات اللوغ
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# إعداد Dispatcher
+dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
-# دالة فحص العملات (مثال)
-def scan_crypto():
-    return "📈 أفضل العملات الآن:\n1. BTC\n2. ETH\n3. SOL"
-
-# دالة فحص الأسهم (مثال)
-def scan_stocks():
-    return "📊 أفضل الأسهم الآن:\n1. AAPL\n2. NVDA\n3. TSLA"
-
-# أوامر التليجرام
+# أوامر البوت
 def start(update: Update, context: CallbackContext):
-    if update.effective_user.id in ALLOWED_USERS:
-        update.message.reply_text("مرحبًا! أرسل /scan_crypto أو /scan_stocks للحصول على التحليلات.")
+    if update.effective_user.id not in ALLOWED_USERS:
+        return update.message.reply_text("غير مصرح لك.")
+    update.message.reply_text("أهلاً بك في بوت السوق.")
 
-def scan_crypto_command(update: Update, context: CallbackContext):
-    if update.effective_user.id in ALLOWED_USERS:
-        result = scan_crypto()
-        update.message.reply_text(result)
+def scan(update: Update, context: CallbackContext):
+    if update.effective_user.id not in ALLOWED_USERS:
+        return update.message.reply_text("غير مصرح لك.")
+    update.message.reply_text("يتم الآن فحص السوق...")
 
-def scan_stocks_command(update: Update, context: CallbackContext):
-    if update.effective_user.id in ALLOWED_USERS:
-        result = scan_stocks()
-        update.message.reply_text(result)
+# ربط الأوامر
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("scan", scan))
 
-# جدولة إرسال تلقائي يومي
+# جدولة إرسال التقرير اليومي
+scheduler = BackgroundScheduler()
+
 def send_daily_report():
-    try:
-        bot.send_message(chat_id=7863509137, text="📅 تقرير السوق:\n\n" + scan_crypto() + "\n\n" + scan_stocks())
-    except Exception as e:
-        print("خطأ أثناء إرسال التقرير:", e)
+    for user_id in ALLOWED_USERS:
+        try:
+            bot.send_message(chat_id=user_id, text="📈 تقرير السوق اليومي...")
+        except Exception as e:
+            print(f"خطأ عند الإرسال إلى {user_id}: {e}")
 
-# تشغيل Flask وهمي لـ Render
-@app.route('/')
+scheduler.add_job(send_daily_report, "cron", hour=12, minute=0)
+scheduler.start()
+
+# إعداد Webhook route
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok"
+
+@app.route("/")
 def home():
-    return "Running!"
+    return "✅ البوت يعمل"
 
-# التهيئة النهائية
-if __name__ == '__main__':
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp: Dispatcher = updater.dispatcher
-
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("scan_crypto", scan_crypto_command))
-    dp.add_handler(CommandHandler("scan_stocks", scan_stocks_command))
-
-    # تشغيل البوت
-    updater.start_polling()
-
-    # جدولة التقرير اليومي الساعة 3 مساءً
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_report, 'cron', hour=15, minute=0, timezone='Asia/Riyadh')
-    scheduler.start()
-
-    # تشغيل Flask
-    app.run(host='0.0.0.0', port=10000)
+# إعداد Webhook عند التشغيل
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'example.com')}/{TOKEN}"
+    bot.set_webhook(url=webhook_url)
+    app.run(host="0.0.0.0", port=port)
