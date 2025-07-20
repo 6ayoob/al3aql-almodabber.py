@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: your-service-name
+    name: al3aql-almodabber.py
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
