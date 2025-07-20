@@ -1,66 +1,58 @@
 import os
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import CommandHandler, Dispatcher
+from telegram.ext import Dispatcher, CommandHandler, CallbackContext
 from apscheduler.schedulers.background import BackgroundScheduler
-import logging
+from datetime import datetime
 
-# إعدادات البوت
+# إعداد التوكن والمعرّف
 TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
 ALLOWED_IDS = [7863509137]
 
-# تهيئة البوت و Flask
+# إنشاء الكائنات الأساسية
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
-dispatcher = Dispatcher(bot, None, use_context=True)
+dispatcher = Dispatcher(bot=bot, update_queue=None, use_context=True)
 
-# تسجيل الأحداث
-logging.basicConfig(level=logging.INFO)
+# أمر /start
+def start(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_IDS:
+        update.message.reply_text("مرحبًا بك في البوت!")
 
-# دالة تحقق من صلاحية المستخدم
-def is_authorized(user_id):
-    return user_id in ALLOWED_IDS
+# أمر /time - فقط كمثال
+def show_time(update: Update, context: CallbackContext):
+    if update.effective_user.id in ALLOWED_IDS:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        update.message.reply_text(f"الوقت الحالي: {now}")
 
-# أوامر البوت
-def start(update: Update, context):
-    if is_authorized(update.effective_user.id):
-        update.message.reply_text("✅ أهلاً بك! البوت يعمل.")
-    else:
-        update.message.reply_text("❌ غير مصرح لك باستخدام هذا البوت.")
-
-def scan(update: Update, context):
-    if not is_authorized(update.effective_user.id):
-        return update.message.reply_text("❌ غير مصرح.")
-    update.message.reply_text("📊 جاري الفحص...")
+# مهمة يومية وهمية (يمكنك استبدالها بتحليلك اليومي)
+def send_daily_report():
+    for user_id in ALLOWED_IDS:
+        try:
+            bot.send_message(chat_id=user_id, text="📊 هذا هو تقريرك اليومي (مثال تجريبي).")
+        except Exception as e:
+            print(f"❌ فشل الإرسال إلى {user_id}: {e}")
 
 # إضافة الأوامر
 dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("scan", scan))
+dispatcher.add_handler(CommandHandler("time", show_time))
 
-# تقرير يومي
-def send_daily_report():
-    for chat_id in ALLOWED_IDS:
-        bot.send_message(chat_id, "📈 هذا تقرير يومي تجريبي.")
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_report, "cron", hour=15, minute=0, timezone="Asia/Riyadh")
-scheduler.start()
-
-# نقطة الدخول لـ Telegram Webhook
+# Flask route لمعالجة Webhook
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
-    return "ok"
+    return "OK", 200
 
-# نقطة وهمية لإرضاء Render
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ البوت يعمل"
+# جدولة التقرير اليومي
+scheduler = BackgroundScheduler()
+scheduler.add_job(send_daily_report, "cron", hour=15, minute=0)  # الساعة 3 مساءً بتوقيت السعودية
+scheduler.start()
 
-# عند تشغيل السيرفر
+# تشغيل التطبيق
 if __name__ == "__main__":
-    # تعيين Webhook تلقائيًا عند التشغيل
+    bot.delete_webhook()  # حذف أي Webhook سابق
+
     external_url = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
     if external_url:
         webhook_url = f"https://{external_url}/{TOKEN}"
