@@ -13,50 +13,74 @@ ALLOWED_IDS = [7863509137]
 bot = Bot(token=TOKEN)
 
 app = Flask(__name__)
+import requests
+import time
 
-def is_golden_cross(df):
-    # تقاطع صاعد عندما MA20 يقطع MA50 من الأسفل للأعلى
-    return df['MA20'][-2] < df['MA50'][-2] and df['MA20'][-1] > df['MA50'][-1]
+API_TOKEN = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
+
+def get_candles(symbol):
+    to_time = int(time.time())
+    from_time = to_time - 60*60*24*90  # 90 يوم تقريباً (ثلاثة أشهر)
+    url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol}&resolution=D&from={from_time}&to={to_time}&token={API_TOKEN}"
+    resp = requests.get(url).json()
+    if resp.get('s') != 'ok':
+        return None
+    return resp
+
+def moving_average(data, period):
+    if len(data) < period:
+        return None
+    return sum(data[-period:]) / period
+
+def is_golden_cross(close_prices):
+    if len(close_prices) < 50:
+        return False
+    ma20_yesterday = moving_average(close_prices[:-1], 20)
+    ma50_yesterday = moving_average(close_prices[:-1], 50)
+    ma20_today = moving_average(close_prices, 20)
+    ma50_today = moving_average(close_prices, 50)
+    if ma20_yesterday is None or ma50_yesterday is None:
+        return False
+    return ma20_yesterday < ma50_yesterday and ma20_today > ma50_today
 
 def check_stock(symbol):
-    try:
-        df = yf.download(symbol, period="60d")  # بيانات 60 يوم لاحتساب المتوسطات
-        if df.empty or len(df) < 50:
-            return False
-
-        df['MA20'] = df['Close'].rolling(window=20).mean()
-        df['MA50'] = df['Close'].rolling(window=50).mean()
-        df['Volume_MA50'] = df['Volume'].rolling(window=50).mean()
-
-        price = df['Close'][-1]
-        volume = df['Volume'][-1]
-        vol_ma50 = df['Volume_MA50'][-1]
-        ma20 = df['MA20'][-1]
-        ma50 = df['MA50'][-1]
-
-        # الشروط
-        if price > 1 and price > ma50 and volume > vol_ma50 and is_golden_cross(df):
-            return True
-        return False
-    except Exception as e:
-        print(f"خطأ في السهم {symbol}: {e}")
+    quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={API_TOKEN}"
+    quote = requests.get(quote_url).json()
+    if not all(k in quote for k in ("c", "v")):
         return False
 
-# قائمة أسهم ناسداك (هذه عينة، استبدلها بقائمة كاملة عندك)
-nasdaq_symbols = [
-    "AAPL", "MSFT", "AMZN", "TSLA", "NVDA", "GOOGL", "META", "ADBE", "INTC", "CMCSA",
-    # أضف المزيد حتى تصل 200 سهم أو اقرأ من ملف symbols.txt
-]
+    price = quote["c"]
+    volume = quote["v"]
+    if price <= 1:
+        return False
 
-selected_stocks = []
+    candles = get_candles(symbol)
+    if not candles:
+        return False
 
-for symbol in nasdaq_symbols[:200]:
-    if check_stock(symbol):
-        selected_stocks.append(symbol)
+    close_prices = candles['c']
+    volume_ma50 = sum(candles['v'][-50:]) / 50 if len(candles['v']) >= 50 else None
 
-print("الأسهم التي تحقق الشروط:")
-for stock in selected_stocks:
-    print(stock)
+    if volume_ma50 is None or volume <= volume_ma50:
+        return False
+
+    if price <= moving_average(close_prices, 50):
+        return False
+
+    if not is_golden_cross(close_prices):
+        return False
+
+    return True
+
+# استخدامك للقائمة:
+symbols = ["AAPL", "MSFT", "TSLA", "AMZN", ...]  # حمل الرموز من ملف مثلا
+selected = []
+
+for sym in symbols[:200]:
+    if check_stock(sym):
+        selected.append(sym)
+
+print("Selected stocks:", selected)
 
 # ✅ تقرير يومي تلقائي
 def send_daily_report():
