@@ -1,76 +1,98 @@
-import os
 import requests
+import yfinance as yf
 from flask import Flask, request
+from apscheduler.schedulers.background import BackgroundScheduler
 import telegram
+import pytz
+from datetime import datetime
 
 # إعدادات البوت
 BOT_TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
-ALLOWED_USERS = [658712542]
-FINNHUB_API_KEY = "d1qisl1r01qo4qd7h510d1qisl1r01qo4qd7h51g"
-COINGECKO_API = "https://api.coingecko.com/api/v3"
+ALLOWED_USERS = [658712542]  # أضف هنا معرفات المستخدمين المصرح لهم
 
-# إنشاء البوت وFlask
+# إعداد البوت والتطبيق
 bot = telegram.Bot(token=BOT_TOKEN)
 app = Flask(__name__)
+timezone = pytz.timezone("Asia/Riyadh")
 
+# دالة لجلب رموز ناسداك من ملف رسمي
+def get_nasdaq_tickers():
+    url = "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt"
+    resp = requests.get(url)
+    lines = resp.text.splitlines()[1:]  # تخطي رأس الجدول
+    tickers = [line.split("|")[0] for line in lines if "Test Issue" not in line]
+    return tickers
+
+# دالة الفحص وإرسال التنبيهات
+def scan_and_notify():
+    tickers = get_nasdaq_tickers()
+    batch = tickers[:300]  # يمكن زيادة العدد حسب الحاجة
+
+    try:
+        data = yf.download(tickers=batch, period="2d", interval="1d", group_by='ticker', threads=True)
+    except Exception as e:
+        print(f"فشل في تحميل البيانات: {e}")
+        return
+
+    for ticker in batch:
+        try:
+            if ticker not in data or len(data[ticker]) < 2:
+                continue
+
+            today = data[ticker].iloc[-1]
+            yesterday = data[ticker].iloc[-2]
+
+            close = today['Close']
+            prev_close = yesterday['Close']
+            sma_50 = yf.Ticker(ticker).history(period="60d")['Close'].rolling(50).mean().iloc[-1]
+
+            percent_change = ((close - prev_close) / prev_close) * 100
+            crossed_sma50 = close > sma_50 and yesterday['Close'] <= sma_50
+
+            msg = ""
+            if close > 1:
+                if percent_change >= 5:
+                    msg += f"📈 {ticker} صعد أكثر من 5٪ اليوم\n"
+                if crossed_sma50:
+                    msg += f"📊 {ticker} اخترق المتوسط 50 SMA\n"
+
+                if msg:
+                    for uid in ALLOWED_USERS:
+                        bot.send_message(chat_id=uid, text=msg)
+
+        except Exception as e:
+            print(f"خطأ في {ticker}: {e}")
+
+# صفحة التحقق على الويب
 @app.route('/')
 def home():
-    return '🤖 Bot is running!'
+    return '✅ Stock bot is running.'
 
-@app.route('/webhook', methods=['POST'])  # ✅ رابط Webhook
-def telegram_webhook():
+# نقطة تلقي الرسائل من تليجرام
+@app.route('/webhook', methods=['POST'])
+def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     handle_message(update)
     return 'OK'
 
+# التعامل مع الرسائل
 def handle_message(update):
     message = update.message
-    user_id = message.chat.id
-    text = message.text
+    chat_id = message.chat.id
 
-    if user_id not in ALLOWED_USERS:
-        bot.send_message(chat_id=user_id, text="❌ غير مصرح لك باستخدام هذا البوت.")
+    if chat_id not in ALLOWED_USERS:
+        bot.send_message(chat_id=chat_id, text="🚫 غير مصرح لك باستخدام هذا البوت.")
         return
 
-    if text == '/scan_stocks':
-        bot.send_message(chat_id=user_id, text="🔍 جاري البحث عن الأسهم تحت 7 دولار...")
-        scan_stocks(user_id)
+    if message.text == '/scan':
+        bot.send_message(chat_id=chat_id, text="🔍 يتم الآن فحص السوق...")
+        scan_and_notify()
 
-    elif text == '/scan_crypto':
-        bot.send_message(chat_id=user_id, text="💰 جاري فحص العملات الرقمية...")
-        scan_crypto(user_id)
+# جدولة الفحص التلقائي كل ساعة
+scheduler = BackgroundScheduler(timezone=timezone)
+scheduler.add_job(scan_and_notify, 'interval', hours=1)
+scheduler.start()
 
-def scan_stocks(chat_id):
-    symbols_url = f"https://finnhub.io/api/v1/stock/symbol?exchange=US&token={FINNHUB_API_KEY}"
-    symbols = requests.get(symbols_url).json()
-
-    results = []
-    for stock in symbols:
-        symbol = stock["symbol"]
-        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
-        data = requests.get(quote_url).json()
-        current = data.get("c")
-
-        if current and current > 0 and current < 7:
-            results.append(f"{symbol} - ${current:.2f}")
-        if len(results) >= 10:
-            break
-
-    if results:
-        msg = "📈 أفضل الأسهم تحت 7 دولار:\n" + "\n".join(results)
-    else:
-        msg = "❌ لا توجد أسهم تحقق الشروط حالياً."
-
-    bot.send_message(chat_id=chat_id, text=msg)
-
-def scan_crypto(chat_id):
-    url = f"{COINGECKO_API}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1"
-    response = requests.get(url).json()
-
-    lines = [f"{coin['name']} ({coin['symbol'].upper()}): ${coin['current_price']}" for coin in response]
-    msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
-    bot.send_message(chat_id=chat_id, text=msg)
-
+# تشغيل السيرفر على Render
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=10000)
