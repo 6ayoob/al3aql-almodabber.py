@@ -118,5 +118,7 @@ def scan_crypto(chat_id):
     msg = "🪙 أفضل العملات الرقمية:\n" + "\n".join(lines)
     bot.send_message(chat_id=chat_id, text=msg)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+if name == '__main__':
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
