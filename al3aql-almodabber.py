@@ -104,5 +104,5 @@ def index():
     return "Bot is running!"
 
 if __name__ == "__main__":
-    bot.set_webhook(url=f"https://your-render-app-url.onrender.com/{TOKEN}")  # استبدل هنا بالرابط الخاص بك
+    bot.set_webhook(url=f"https://al3aql-almodabber-py-2xic.onrender.com/{TOKEN}")  # استبدل هنا بالرابط الخاص بك
     app.run(host="0.0.0.0", port=1000)
