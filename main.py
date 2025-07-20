@@ -70,5 +70,6 @@ if __name__ == '__main__':
     scheduler.add_job(send_daily_report, 'cron', hour=15, minute=0, timezone='Asia/Riyadh')
     scheduler.start()
 
-    # تشغيل Flask
-    app.run(host='0.0.0.0', port=10000)
+import os
+port = int(os.environ.get("PORT", 10000))  # يستخدم متغير البيئة PORT أو 10000 افتراضياً
+app.run(host='0.0.0.0', port=port)
