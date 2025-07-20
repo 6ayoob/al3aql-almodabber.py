@@ -1,8 +1,12 @@
 services:
   - type: web
-    name: al3aql-almodabber
+    name: telegram-report-bot
     env: python
     plan: free
-    pythonVersion: 3.10.11
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: PORT
+        value: 1000
