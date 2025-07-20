@@ -1,63 +1,73 @@
 import os
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler, CallbackContext
+from telegram.ext import CommandHandler, Dispatcher
+import logging
+import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
 
-# إعداد التوكن والمعرّف
+# إعداد البوت
 TOKEN = "7863509137:AAHBuRbtzMAOM_yBbVZASfx-oORubvQYxY8"
-ALLOWED_IDS = [7863509137]
-
-# إنشاء الكائنات الأساسية
+ALLOWED_USERS = [7863509137]
 bot = Bot(token=TOKEN)
-app = Flask(__name__)
-dispatcher = Dispatcher(bot=bot, update_queue=None, use_context=True)
 
-# أمر /start
-def start(update: Update, context: CallbackContext):
-    if update.effective_user.id in ALLOWED_IDS:
-        update.message.reply_text("مرحبًا بك في البوت!")
+# إعداد السجل
+logging.basicConfig(level=logging.INFO)
 
-# أمر /time - فقط كمثال
-def show_time(update: Update, context: CallbackContext):
-    if update.effective_user.id in ALLOWED_IDS:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        update.message.reply_text(f"الوقت الحالي: {now}")
+# دالة فحص العملات الرقمية (كمثال)
+def scan_crypto():
+    return "📊 نتائج العملات الرقمية:\n- BTC: ارتفاع\n- ETH: تجميع"
 
-# مهمة يومية وهمية (يمكنك استبدالها بتحليلك اليومي)
+# دالة فحص الأسهم تحت 7 دولار (كمثال)
+def scan_stocks():
+    return "📈 نتائج الأسهم:\n- ABC: حجم تداول مرتفع\n- XYZ: تجميع"
+
+# دالة التقرير اليومي
 def send_daily_report():
-    for user_id in ALLOWED_IDS:
-        try:
-            bot.send_message(chat_id=user_id, text="📊 هذا هو تقريرك اليومي (مثال تجريبي).")
-        except Exception as e:
-            print(f"❌ فشل الإرسال إلى {user_id}: {e}")
+    report = scan_stocks()
+    for user_id in ALLOWED_USERS:
+        bot.send_message(chat_id=user_id, text=f"📅 التقرير اليومي:\n{report}")
 
-# إضافة الأوامر
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("time", show_time))
+# أوامر Telegram
+def start(update: Update, context):
+    if update.effective_user.id in ALLOWED_USERS:
+        update.message.reply_text("أهلاً بك في بوت مراقبة السوق 📈")
 
-# Flask route لمعالجة Webhook
+def handle_scan_stocks(update: Update, context):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_stocks()
+        update.message.reply_text(result)
+
+def handle_scan_crypto(update: Update, context):
+    if update.effective_user.id in ALLOWED_USERS:
+        result = scan_crypto()
+        update.message.reply_text(result)
+
+# إعداد Flask
+app = Flask(__name__)
+
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
-    return "OK", 200
+    return "ok"
+
+@app.route("/")
+def index():
+    return "Bot is running!"
 
 # جدولة التقرير اليومي
 scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_report, "cron", hour=15, minute=0)  # الساعة 3 مساءً بتوقيت السعودية
+scheduler.add_job(send_daily_report, "cron", hour=15, minute=0, timezone=pytz.timezone('Asia/Riyadh'))
 scheduler.start()
 
-# تشغيل التطبيق
+# إعداد أوامر البوت
+dispatcher = Dispatcher(bot, None, workers=0)
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("scan_stocks", handle_scan_stocks))
+dispatcher.add_handler(CommandHandler("scan_crypto", handle_scan_crypto))
+
+# إعداد Webhook
 if __name__ == "__main__":
-    bot.delete_webhook()  # حذف أي Webhook سابق
-
-    external_url = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
-    if external_url:
-        webhook_url = f"https://{external_url}/{TOKEN}"
-        bot.set_webhook(url=webhook_url)
-        print(f"✅ Webhook set to {webhook_url}")
-
-    port = int(os.environ.get("PORT", 1000))
-    app.run(host="0.0.0.0", port=port)
+    bot.set_webhook(url=f"https://al3aql-almodabber-py-2xic.onrender.com/{TOKEN}")
+    app.run(host="0.0.0.0", port=1000)
